@@ -1,4 +1,8 @@
-import type { MetaFunction } from "@remix-run/node";
+import { Form, useLoaderData } from '@remix-run/react';
+import createServerClient from '../../utils/supabase.server';
+import { ActionFunctionArgs, json, type LoaderFunctionArgs, type MetaFunction } from "@remix-run/node";
+import Login from '../../components/login';
+import RealtimeMessages from 'components/realtime-messages';
 
 export const meta: MetaFunction = () => {
   return [
@@ -7,35 +11,37 @@ export const meta: MetaFunction = () => {
   ];
 };
 
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const response = new Response();
+  const supabse = createServerClient({ request, response });
+
+  const { message } = Object.fromEntries(await request.formData());
+  const { error } = await supabse.from('messages').insert({ content: String(message) });
+
+  if (error) {
+    console.log(error);
+  }
+
+  return json(null, { headers: response.headers });
+};
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const response = new Response();
+  const supabase = createServerClient({ request, response });
+  const { data } = await supabase.from('messages').select();
+  return json({ messages: data ?? [] }, { headers: response.headers });
+};
+
 export default function Index() {
+  const { messages } = useLoaderData<typeof loader>();
   return (
-    <div style={{ fontFamily: "system-ui, sans-serif", lineHeight: "1.8" }}>
-      <h1>Welcome to Remix</h1>
-      <ul>
-        <li>
-          <a
-            target="_blank"
-            href="https://remix.run/tutorials/blog"
-            rel="noreferrer"
-          >
-            15m Quickstart Blog Tutorial
-          </a>
-        </li>
-        <li>
-          <a
-            target="_blank"
-            href="https://remix.run/tutorials/jokes"
-            rel="noreferrer"
-          >
-            Deep Dive Jokes App Tutorial
-          </a>
-        </li>
-        <li>
-          <a target="_blank" href="https://remix.run/docs" rel="noreferrer">
-            Remix Docs
-          </a>
-        </li>
-      </ul>
-    </div>
+    <>
+      <Login />
+      <RealtimeMessages serverMessages={messages} />
+      <Form method='POST'>
+        <input type='text' name='message' />
+        <button type='submit'>Send</button>
+      </Form>
+    </>
   );
-}
+};
